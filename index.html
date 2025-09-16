@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lost & Found - Missing Persons</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 0;
+      background: #f5f7fa;
+    }
+    header {
+      background: #003366; color: #fff;
+      padding: 15px; text-align: center;
+    }
+    .container { padding: 20px; }
+
+    /* Buttons */
+    .btn {
+      background: #003366; color: #fff;
+      border: none; padding: 10px 16px;
+      cursor: pointer; border-radius: 5px;
+    }
+    .btn:hover { background: #0055aa; }
+    .btn.ghost {
+      background: #fff; color: #003366;
+      border: 1px solid #003366;
+    }
+
+    /* Report card */
+    .card {
+      background: #fff; padding: 15px;
+      margin: 10px 0; border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .card h4 { margin: 0 0 8px; }
+
+    /* Modal */
+    .modal {
+      display: none; position: fixed;
+      inset: 0; background: rgba(0,0,0,0.6);
+      align-items: center; justify-content: center;
+    }
+    .modal.show { display: flex; }
+    .panel {
+      background: #fff; padding: 20px;
+      border-radius: 8px; width: 300px;
+    }
+    .panel h3 { margin-top: 0; }
+    .panel input, .panel textarea {
+      width: 100%; padding: 8px; margin: 6px 0;
+      border: 1px solid #ccc; border-radius: 4px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background: #003366; color: #fff;
+      padding: 10px 16px; border-radius: 5px;
+      display: none;
+    }
+    .toast.show { display: block; animation: fadeInOut 3s forwards; }
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(20px); }
+      10% { opacity: 1; transform: translateY(0); }
+      90% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(20px); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Lost & Found - Missing Persons</h1>
+  </header>
+
+  <div class="container">
+    <button class="btn" onclick="openReportModal()">+ Submit Missing Person Report</button>
+    <div id="reports"></div>
+  </div>
+
+  <!-- Report Modal -->
+  <div class="modal" id="reportModal">
+    <div class="panel">
+      <h3>Submit Report</h3>
+      <form id="reportForm">
+        <input type="text" id="name" placeholder="Name" required>
+        <input type="number" id="age" placeholder="Age" required>
+        <textarea id="details" placeholder="Details" required></textarea>
+        <button type="submit" class="btn">Submit</button>
+        <button type="button" class="btn ghost" onclick="closeReportModal()">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div class="modal" id="authModal">
+    <div class="panel" role="dialog" aria-modal="true">
+      <h3>🔐 User Login / Register</h3>
+      <form id="authForm" style="display:flex;flex-direction:column;gap:12px;margin-top:10px;">
+        <input id="authUsername" type="text" placeholder="Username" required>
+        <input id="authPassword" type="password" placeholder="Password" required>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn" id="loginBtn">Login</button>
+          <button type="button" class="btn ghost" id="registerBtn">Register</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const reportModal = document.getElementById('reportModal');
+    const authModal = document.getElementById('authModal');
+    const reportsDiv = document.getElementById('reports');
+    const toast = document.getElementById('toast');
+    let currentUser = null;
+
+    /* ---------- UI Helpers ---------- */
+    function showToast(msg, error=false){
+      toast.textContent = msg;
+      toast.style.background = error ? "#aa0000" : "#003366";
+      toast.classList.add("show");
+      setTimeout(()=> toast.classList.remove("show"), 3000);
+    }
+    function openReportModal(){
+      if(!currentUser){ 
+        showToast("Please login first", true);
+        authModal.classList.add('show');
+        return;
+      }
+      reportModal.classList.add('show');
+    }
+    function closeReportModal(){ reportModal.classList.remove('show'); }
+
+    /* ---------- Report Handling ---------- */
+    function pushItemAndClose(fdata){
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <h4>${fdata.name} (${fdata.age})</h4>
+        <p>${fdata.details}</p>
+        <small><b>Report ID:</b> ${fdata.reportId}</small><br>
+        <small><b>Reporter:</b> ${fdata.reporter}</small>
+      `;
+      reportsDiv.prepend(card);
+      closeReportModal();
+    }
+
+    document.getElementById('reportForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      if(!currentUser){ 
+        showToast("Please login first", true);
+        authModal.classList.add('show');
+        return;
+      }
+      const fdata = {
+        name: document.getElementById('name').value,
+        age: document.getElementById('age').value,
+        details: document.getElementById('details').value,
+        reporter: currentUser,
+        reportId: "LF-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + crypto.randomUUID().slice(0,8)
+      };
+      pushItemAndClose(fdata);
+      alert("Report submitted ✅\nYour Report ID: " + fdata.reportId + "\nKeep it safe for verification.");
+      this.reset();
+    });
+
+    /* ---------- Auth Handling ---------- */
+    const USERS_KEY = 'lf_users';
+    function getUsers(){
+      try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
+      catch(e){ return []; }
+    }
+    function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
+
+    document.getElementById('registerBtn').addEventListener('click', ()=>{
+      const u = document.getElementById('authUsername').value.trim();
+      const p = document.getElementById('authPassword').value.trim();
+      if(!u || !p) return alert("Enter username and password");
+      const users = getUsers();
+      if(users.find(x=>x.username===u)) return alert("Username already exists!");
+      users.push({ username:u, password:btoa(p) });
+      saveUsers(users);
+      alert("Registration successful ✅. Now login.");
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', ()=>{
+      const u = document.getElementById('authUsername').value.trim();
+      const p = document.getElementById('authPassword').value.trim();
+      const users = getUsers();
+      const match = users.find(x=>x.username===u && x.password===btoa(p));
+      if(!match) return alert("Invalid credentials ❌");
+      currentUser = u;
+      authModal.classList.remove('show');
+      showToast("Welcome, " + u + " 👋");
+    });
+
+    // Force login on first load
+    window.addEventListener('load', ()=>{
+      if(!currentUser){ authModal.classList.add('show'); }
+    });
+  </script>
+</body>
+</html>
